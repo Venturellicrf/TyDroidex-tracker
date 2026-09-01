@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Droidex Tycoon Tracker Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-main: #0f111a;
+            --bg-panel: #1e212b;
+            --text-main: #f1f2f6;
+            --text-muted: #a4b0be;
+            --accent: #3742fa;
+            --border: #2f3542;
+            
+            --common: #747d8c;
+            --rare: #1e90ff;
+            --epic: #a55eea;
+            --legendary: #ffa502;
+            --mythic: #ff4757;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            margin: 0;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        aside {
+            width: 260px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo {
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            border-bottom: 1px solid var(--border);
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 15px 0;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            color: var(--text-muted);
+            border-left: 4px solid transparent;
+            transition: 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: white;
+        }
+
+        .nav-item.active {
+            border-left-color: var(--accent);
+            color: white;
+            background-color: rgba(55, 66, 250, 0.1);
+            font-weight: 600;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--bg-panel);
+            padding: 15px 30px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #search-box {
+            padding: 10px 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 260px;
+            background-color: var(--bg-main);
+            color: white;
+            outline: none;
+        }
+
+        #search-box:focus { border-color: var(--accent); }
+        
+        .status-sync {
+            font-size: 0.85rem;
+            padding: 6px 15px;
+            border-radius: 20px;
+            background-color: #2f3542;
+            color: white;
+        }
+
+        /* Botões de Auth */
+        .btn-auth {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: 0.2s;
+        }
+        .btn-auth:hover { opacity: 0.9; }
+        .btn-logout { background-color: #ff4757; }
+
+        .user-profile {
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+        }
+
+        .content-area {
+            flex: 1;
+            padding: 25px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .section-container { display: none; }
+        .section-container.active { display: block; }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background-color: var(--bg-panel);
+            border-radius: 8px;
+            border: 2px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 250px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+        }
+
+        /* Droid Coletado (Adquirido) */
+        .card.collected {
+            border-color: #2ed573 !important;
+            box-shadow: 0 0 12px rgba(46, 213, 115, 0.3);
+        }
+
+        .card.collected::after {
+            content: "✓ OBTIDO";
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: #2ed573;
+            color: #000;
+            font-size: 0.65rem;
+            font-weight: 900;
+            padding: 3px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .card-header { 
+            padding: 12px; 
+            font-weight: bold; 
+            text-align: center; 
+            border-bottom: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+        
+        .card-image {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #161821;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .card-rarity {
+            text-align: center;
+            padding: 8px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .rarity-COMMON { border-color: var(--common); }
+        .rarity-COMMON .card-rarity { background-color: var(--common); color: white; }
+        .rarity-RARE { border-color: var(--rare); }
+        .rarity-RARE .card-rarity { background-color: var(--rare); color: white; }
+        .rarity-EPIC { border-color: var(--epic); }
+        .rarity-EPIC .card-rarity { background-color: var(--epic); color: white; }
+        .rarity-LEGENDARY { border-color: var(--legendary); }
+        .rarity-LEGENDARY .card-rarity { background-color: var(--legendary); color: white; }
+        .rarity-MYTHIC { border-color: var(--mythic); }
+        .rarity-MYTHIC .card-rarity { background-color: var(--mythic); color: white; }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            background-color: var(--bg-panel);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: rgba(255,255,255,0.02);
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        tr:hover { background-color: rgba(255,255,255,0.05); }
+
+        .loading-text {
+            color: var(--accent);
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <div class="logo">DROIDEX DB</div>
+        <div class="nav-menu">
+            <div class="nav-item active" onclick="openTab('droidex')">Droidex / Rebirths</div>
+            <div class="nav-item" onclick="openTab('inventory')">Inventory Manager</div>
+            <div class="nav-item" onclick="openTab('cosmetics')">Cosmetics</div>
+            <div class="nav-item" onclick="openTab('reference')">Reference Sheet (Costs)</div>
+            <div class="nav-item" onclick="openTab('fusion')">Fusion Recipes</div>
+            <div class="nav-item" onclick="openTab('crafting')">Crafting Times & Buffs</div>
+            <div class="nav-item" onclick="openTab('nova')">Nova Crystals & Shop</div>
+        </div>
+    </aside>
+
+    <main>
+        <header>
+            <input type="text" id="search-box" placeholder="🔍 Buscar na aba atual..." onkeyup="filterContent()">
+            
+            <div class="header-right">
+                <div class="status-sync" id="sync-status">Aguardando...</div>
+                
+                <!-- Área de Autenticação -->
+                <button id="btn-login" class="btn-auth">🔑 Entrar com Google</button>
+                <div id="user-profile" class="user-profile">
+                    <img id="user-photo" class="user-avatar" src="" alt="Avatar">
+                    <span id="user-name" style="font-size: 0.85rem; font-weight: 600;"></span>
+                    <button id="btn-logout" class="btn-auth btn-logout">Sair</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <div id="droidex" class="section-container active">
+                <div class="grid-container" id="droid-grid"></div>
+            </div>
+            
+            <div id="inventory" class="section-container"><div class="table-container" id="inventory-table"></div></div>
+            <div id="cosmetics" class="section-container"><div class="table-container" id="cosmetics-table"></div></div>
+            <div id="reference" class="section-container"><div class="table-container" id="reference-table"></div></div>
+            <div id="fusion" class="section-container"><div class="table-container" id="fusion-table"></div></div>
+            <div id="crafting" class="section-container"><div class="table-container" id="crafting-table"></div></div>
+            <div id="nova" class="section-container"><div class="table-container" id="nova-table"></div></div>
+        </div>
+    </main>
+
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Sua configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyB2O10ZgDmkktliMTA7toN3lcbSMCr57_4",
+            authDomain: "tycoondroid-38a.firebaseapp.com",
+            projectId: "tycoondroid-38a",
+            storageBucket: "tycoondroid-38a.firebasestorage.app",
+            messagingSenderId: "1031420339521",
+            appId: "1:1031420339521:web:dc38e7ce7a2b72da026dc0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let currentUser = null;
+        let userCollectedDroids = {};
+
+        // 1. AUTENTICAÇÃO
+        const btnLogin = document.getElementById('btn-login');
+        const btnLogout = document.getElementById('btn-logout');
+        const userProfile = document.getElementById('user-profile');
+        const userPhoto = document.getElementById('user-photo');
+        const userName = document.getElementById('user-name');
+
+        btnLogin.onclick = () => signInWithPopup(auth, provider);
+        btnLogout.onclick = () => signOut(auth);
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                userPhoto.src = user.photoURL || '';
+                userName.innerText = user.displayName ? user.displayName.split(' ')[0] : 'Usuário';
+                btnLogin.style.display = 'none';
+                userProfile.style.display = 'flex';
+
+                // Carrega progresso do usuário no Firestore
+                await loadUserProgress();
+            } else {
+                currentUser = null;
+                userCollectedDroids = {};
+                btnLogin.style.display = 'block';
+                userProfile.style.display = 'none';
+                updateCardVisuals();
+            }
+        });
+
+        // 2. FIRESTORE - SALVAR E CARREGAR PROGRESSO
+        async function loadUserProgress() {
+            if (!currentUser) return;
+            const userRef = doc(db, "users", currentUser.uid);
+            const snap = await getDoc(userRef);
+            
+            if (snap.exists() && snap.data().collectedDroids) {
+                userCollectedDroids = snap.data().collectedDroids;
+            } else {
+                userCollectedDroids = {};
+            }
+            updateCardVisuals();
+        }
+
+        async function toggleDroid(droidName) {
+            if (!currentUser) {
+                alert("Faça login com sua conta do Google para marcar seus Droids!");
+                return;
+            }
+
+            // Alterna status (obtido / não obtido)
+            if (userCollectedDroids[droidName]) {
+                delete userCollectedDroids[droidName];
+            } else {
+                userCollectedDroids[droidName] = true;
+            }
+
+            updateCardVisuals();
+
+            // Salva no banco de dados do Firebase
+            const userRef = doc(db, "users", currentUser.uid);
+            await setDoc(userRef, { collectedDroids: userCollectedDroids }, { merge: true });
+        }
+
+        function updateCardVisuals() {
+            const cards = document.querySelectorAll('#droid-grid .card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-name');
+                if (userCollectedDroids[name]) {
+                    card.classList.add('collected');
+                } else {
+                    card.classList.remove('collected');
+                }
+            });
+        }
+
+        // Expor funções globais para o HTML
+        window.toggleDroid = toggleDroid;
+
+        // 3. GOOGLE SHEETS E PARSER DA TABELA
+        const SHEET_ID = '1otLCKSCMKICMlnefirQ8KZhh_rdZTd5Mp8h0UYFUiqg';
+        const GIDS_DAS_ABAS = {
+            'droidex': '0',
+            'inventory': '1216481640',
+            'cosmetics': '547464940',
+            'reference': '1248391507',
+            'fusion': '960291467',
+            'crafting': '1131770079',
+            'nova': '1548395368'
+        };
+
+        const cacheDados = {};
+
+        window.openTab = function(tabId) {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if(event && event.currentTarget) event.currentTarget.classList.add('active');
+
+            document.querySelectorAll('.section-container').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+
+            document.getElementById('search-box').value = '';
+
+            if (!cacheDados[tabId]) {
+                fetchDados(tabId);
+            } else {
+                document.getElementById('sync-status').innerText = '✅ Carregado do Cache';
+                document.getElementById('sync-status').style.backgroundColor = '#2ed573';
+            }
+        };
+
+        function fetchDados(tabId) {
+            const statusBadge = document.getElementById('sync-status');
+            statusBadge.innerText = '⏳ Sincronizando...';
+            statusBadge.style.backgroundColor = '#ffa502';
+            
+            let targetDiv = tabId === 'droidex' ? 'droid-grid' : `${tabId}-table`;
+            document.getElementById(targetDiv).innerHTML = '<div class="loading-text">Baixando dados do Google Sheets...</div>';
+
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GIDS_DAS_ABAS[tabId]}`;
+
+            Papa.parse(url, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    cacheDados[tabId] = results.data;
+                    
+                    if (tabId === 'droidex') {
+                        renderCards(results.data);
+                    } else {
+                        renderTable(results.data, `${tabId}-table`);
+                    }
+                    
+                    statusBadge.innerText = '✅ Online: Atualizado';
+                    statusBadge.style.backgroundColor = '#2ed573';
+                },
+                error: function() {
+                    statusBadge.innerText = '❌ Falha de Conexão';
+                    statusBadge.style.backgroundColor = '#ff4757';
+                    document.getElementById(targetDiv).innerHTML = `<div class="loading-text" style="color:#ff4757;">Erro ao carregar dados.</div>`;
+                }
+            });
+        }
+
+        function renderCards(data) {
+            const grid = document.getElementById('droid-grid');
+            grid.innerHTML = '';
+            
+            data.forEach(row => {
+                const nome = row['DROID'] || row['Unnamed: 1']; 
+                const raridade = row['RARITY'] || row['Unnamed: 0'];
+
+                if (!nome || nome === 'DROID' || raridade === 'RARITY') return; 
+
+                const raridadeFormatada = String(raridade).trim().toUpperCase();
+                
+                const card = document.createElement('div');
+                card.className = `card rarity-${raridadeFormatada}`;
+                card.setAttribute('data-name', nome);
+                card.setAttribute('data-search', String(nome).toLowerCase()); 
+                card.onclick = () => window.toggleDroid(nome);
+
+                card.innerHTML = `
+                    <div class="card-header">${nome}</div>
+                    <div class="card-image">Sem Imagem</div>
+                    <div class="card-rarity">${raridadeFormatada || 'NORMAL'}</div>
+                `;
+                grid.appendChild(card);
+            });
+
+            updateCardVisuals();
+        }
+
+        function renderTable(data, containerId) {
+            if (data.length === 0) return;
+
+            const headers = Object.keys(data[0]);
+            let html = '<table><thead><tr>';
+            
+            const validHeaders = headers.filter(h => !h.includes('IF YOU ARE NOT A SHEET EDITOR') && !h.includes('Unnamed:'));
+
+            validHeaders.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            data.forEach(row => {
+                const isRowEmpty = validHeaders.every(h => !row[h] || row[h].trim() === '');
+                if (isRowEmpty) return;
+
+                html += `<tr data-search="${Object.values(row).join(' ').toLowerCase()}">`;
+                validHeaders.forEach(header => {
+                    html += `<td>${row[header] || '-'}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            document.getElementById(containerId).innerHTML = html;
+        }
+
+        window.filterContent = function() {
+            const query = document.getElementById('search-box').value.toLowerCase();
+            const activeTabId = document.querySelector('.section-container.active').id;
+            
+            if (activeTabId === 'droidex') {
+                const cards = document.querySelectorAll('#droid-grid .card');
+                cards.forEach(card => {
+                    const text = card.getAttribute('data-search');
+                    card.style.display = text.includes(query) ? "flex" : "none";
+                });
+            } else {
+                const rows = document.querySelectorAll(`#${activeTabId}-table tbody tr`);
+                rows.forEach(row => {
+                    const text = row.getAttribute('data-search');
+                    row.style.display = text.includes(query) ? "" : "none";
+                });
+            }
+        };
+
+        window.onload = () => {
+            fetchDados('droidex');
+        };
+    </script>
+</body>
+</html>
