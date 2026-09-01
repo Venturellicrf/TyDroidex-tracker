@@ -491,32 +491,43 @@
             });
         }
 
-        function renderCards(data) {
+       function renderCards(data) {
             const grid = document.getElementById('droid-grid');
             grid.innerHTML = '';
             
             data.forEach(row => {
-                const nome = row['DROID'] || row['Unnamed: 1']; 
-                const raridade = row['RARITY'] || row['Unnamed: 0'];
+                // Tenta encontrar o nome do Droid nas possíveis colunas
+                let nome = row['DROID'] || row['Droid'] || row['DROIDS'] || row['Unnamed: 1']; 
+                // Tenta encontrar a raridade
+                let raridade = row['RARITY'] || row['Rarity'] || row['Unnamed: 0'];
 
-                if (!nome || nome === 'DROID' || raridade === 'RARITY') return; 
+                // Validação mais forte: se não for texto ou for cabeçalho, ignora
+                if (!nome || typeof nome !== 'string' || nome.toUpperCase() === 'DROID') return;
+                if (!raridade || typeof raridade !== 'string' || raridade.toUpperCase() === 'RARITY') return;
 
-                const raridadeFormatada = String(raridade).trim().toUpperCase();
+                nome = nome.trim();
+                raridade = raridade.trim();
+
+                // Evita criar cards de instruções da planilha
+                if (nome.includes('IF YOU ARE NOT') || nome.includes('MAKE A COPY')) return;
+
+                const raridadeFormatada = raridade.toUpperCase();
                 
                 const card = document.createElement('div');
                 card.className = `card rarity-${raridadeFormatada}`;
                 card.setAttribute('data-name', nome);
-                card.setAttribute('data-search', String(nome).toLowerCase()); 
+                card.setAttribute('data-search', nome.toLowerCase()); 
                 card.onclick = () => window.toggleDroid(nome);
 
                 card.innerHTML = `
                     <div class="card-header">${nome}</div>
                     <div class="card-image">Sem Imagem</div>
-                    <div class="card-rarity">${raridadeFormatada || 'NORMAL'}</div>
+                    <div class="card-rarity">${raridadeFormatada}</div>
                 `;
                 grid.appendChild(card);
             });
 
+            // Chama a função para pintar de verde os que você já pegou
             updateCardVisuals();
         }
 
@@ -526,7 +537,19 @@
             const headers = Object.keys(data[0]);
             let html = '<table><thead><tr>';
             
-            const validHeaders = headers.filter(h => !h.includes('IF YOU ARE NOT A SHEET EDITOR') && !h.includes('Unnamed:'));
+            // Filtra cabeçalhos inúteis
+            const validHeaders = headers.filter(h => 
+                h && 
+                !h.includes('IF YOU ARE NOT A SHEET EDITOR') && 
+                !h.includes('Unnamed:') &&
+                !h.includes('MAKE A COPY')
+            );
+
+            // Se não sobrar cabeçalhos válidos, aborta
+            if (validHeaders.length === 0) {
+                 document.getElementById(containerId).innerHTML = '<div class="loading-text" style="color:#ff4757;">Aba vazia ou em manutenção.</div>';
+                 return;
+            }
 
             validHeaders.forEach(header => {
                 html += `<th>${header}</th>`;
@@ -534,8 +557,13 @@
             html += '</tr></thead><tbody>';
 
             data.forEach(row => {
-                const isRowEmpty = validHeaders.every(h => !row[h] || row[h].trim() === '');
-                if (isRowEmpty) return;
+                // Verifica se a linha tem dados de verdade (ignora linhas cheias de traços ou vazias)
+                const isRowEmptyOrInvalid = validHeaders.every(h => {
+                   const cellData = row[h];
+                   return !cellData || cellData.trim() === '' || cellData.trim() === '-' || cellData.includes('---');
+                });
+                
+                if (isRowEmptyOrInvalid) return;
 
                 html += `<tr data-search="${Object.values(row).join(' ').toLowerCase()}">`;
                 validHeaders.forEach(header => {
@@ -546,6 +574,7 @@
 
             html += '</tbody></table>';
             document.getElementById(containerId).innerHTML = html;
+        
         }
 
         window.filterContent = function() {
