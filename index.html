@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Revenge Tracker</title>
 
-    <link rel="icon" type="image/png" href="favicon.ico">
+    <!-- Corrigido para .ico para bater com seu arquivo do VS Code -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
@@ -457,6 +458,7 @@
             }
         };
 
+        // BLOCO SUBSTITUÍDO COM SUCESSO AQUI:
         function fetchDados(tabId) {
             const statusBadge = document.getElementById('sync-status');
             statusBadge.innerText = '⏳ Sincronizando...';
@@ -469,15 +471,47 @@
 
             Papa.parse(url, {
                 download: true,
-                header: true,
+                header: false, // Desliga cabeçalho automático para pular os avisos amarelos
                 skipEmptyLines: true,
                 complete: function(results) {
-                    cacheDados[tabId] = results.data;
+                    const rawData = results.data;
+                    if (!rawData || rawData.length < 2) return;
+
+                    // 1. Encontra automaticamente a linha onde os verdadeiros títulos estão
+                    let headerIndex = 0;
+                    for (let i = 0; i < Math.min(5, rawData.length); i++) {
+                        const rowText = rawData[i].join(' ').toUpperCase();
+                        if ((rowText.includes('DROID') || rowText.includes('RARITY') || rowText.includes('LEVEL') || rowText.includes('NAME') || rowText.includes('COSMETIC')) && !rowText.includes('SHEET EDITOR')) {
+                            headerIndex = i;
+                            break;
+                        }
+                    }
+
+                    // 2. Extrai os títulos corretos
+                    const headers = rawData[headerIndex].map(h => h ? h.trim() : `IGNORAR_${Math.random()}`);
+
+                    // 3. Monta os dados, pulando a linha do aviso amarelo
+                    const formattedData = [];
+                    for (let i = headerIndex + 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        if (row.join('').trim() === '') continue;
+
+                        let rowObj = {};
+                        for (let j = 0; j < headers.length; j++) {
+                            if (!headers[j].startsWith('IGNORAR_')) {
+                                rowObj[headers[j]] = row[j] ? row[j].trim() : '';
+                            }
+                        }
+                        formattedData.push(rowObj);
+                    }
+
+                    // 4. Salva no cache e envia para a tela
+                    cacheDados[tabId] = formattedData;
                     
                     if (tabId === 'droidex') {
-                        renderCards(results.data);
+                        renderCards(formattedData);
                     } else {
-                        renderTable(results.data, `${tabId}-table`);
+                        renderTable(formattedData, `${tabId}-table`);
                     }
                     
                     statusBadge.innerText = '✅ Online: Atualizado';
@@ -491,32 +525,24 @@
             });
         }
 
-       function renderCards(data) {
+        function renderCards(data) {
             const grid = document.getElementById('droid-grid');
+            if (!grid) return;
             grid.innerHTML = '';
             
             data.forEach(row => {
-                // Tenta encontrar o nome do Droid nas possíveis colunas
-                let nome = row['DROID'] || row['Droid'] || row['DROIDS'] || row['Unnamed: 1']; 
-                // Tenta encontrar a raridade
-                let raridade = row['RARITY'] || row['Rarity'] || row['Unnamed: 0'];
+                const nome = row['DROID'] || row['NAME'] || row['Droid'] || row['DROIDS'];
+                const raridade = row['RARITY'] || row['Rarity'];
 
-                // Validação mais forte: se não for texto ou for cabeçalho, ignora
-                if (!nome || typeof nome !== 'string' || nome.toUpperCase() === 'DROID') return;
-                if (!raridade || typeof raridade !== 'string' || raridade.toUpperCase() === 'RARITY') return;
-
-                nome = nome.trim();
-                raridade = raridade.trim();
-
-                // Evita criar cards de instruções da planilha
-                if (nome.includes('IF YOU ARE NOT') || nome.includes('MAKE A COPY')) return;
+                // Validação para pular avisos e linhas corrompidas
+                if (!nome || !raridade || nome.includes('---') || nome.includes('HOW TO USE')) return;
 
                 const raridadeFormatada = raridade.toUpperCase();
                 
                 const card = document.createElement('div');
                 card.className = `card rarity-${raridadeFormatada}`;
                 card.setAttribute('data-name', nome);
-                card.setAttribute('data-search', nome.toLowerCase()); 
+                card.setAttribute('data-search', nome.toLowerCase());
                 card.onclick = () => window.toggleDroid(nome);
 
                 card.innerHTML = `
@@ -527,7 +553,6 @@
                 grid.appendChild(card);
             });
 
-            // Chama a função para pintar de verde os que você já pegou
             updateCardVisuals();
         }
 
@@ -537,36 +562,18 @@
             const headers = Object.keys(data[0]);
             let html = '<table><thead><tr>';
             
-            // Filtra cabeçalhos inúteis
-            const validHeaders = headers.filter(h => 
-                h && 
-                !h.includes('IF YOU ARE NOT A SHEET EDITOR') && 
-                !h.includes('Unnamed:') &&
-                !h.includes('MAKE A COPY')
-            );
-
-            // Se não sobrar cabeçalhos válidos, aborta
-            if (validHeaders.length === 0) {
-                 document.getElementById(containerId).innerHTML = '<div class="loading-text" style="color:#ff4757;">Aba vazia ou em manutenção.</div>';
-                 return;
-            }
-
-            validHeaders.forEach(header => {
+            headers.forEach(header => {
                 html += `<th>${header}</th>`;
             });
             html += '</tr></thead><tbody>';
 
             data.forEach(row => {
-                // Verifica se a linha tem dados de verdade (ignora linhas cheias de traços ou vazias)
-                const isRowEmptyOrInvalid = validHeaders.every(h => {
-                   const cellData = row[h];
-                   return !cellData || cellData.trim() === '' || cellData.trim() === '-' || cellData.includes('---');
-                });
-                
-                if (isRowEmptyOrInvalid) return;
+                // Se a linha só tiver traços ou for vazia, ignora
+                const isEmpty = Object.values(row).every(v => !v || v === '-' || v.includes('---'));
+                if (isEmpty) return;
 
                 html += `<tr data-search="${Object.values(row).join(' ').toLowerCase()}">`;
-                validHeaders.forEach(header => {
+                headers.forEach(header => {
                     html += `<td>${row[header] || '-'}</td>`;
                 });
                 html += '</tr>';
@@ -574,7 +581,6 @@
 
             html += '</tbody></table>';
             document.getElementById(containerId).innerHTML = html;
-        
         }
 
         window.filterContent = function() {
